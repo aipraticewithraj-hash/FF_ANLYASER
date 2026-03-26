@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Free Fire IGL Analyzer</title>
+
+<style>
+body {
+  margin: 0;
+  font-family: 'Segoe UI', sans-serif;
+  background: #0a0a0a;
+  color: white;
+  display: flex;
+}
+
+/* Sidebar */
+.sidebar {
+  width: 220px;
+  background: #111;
+  padding: 20px;
+  height: 100vh;
+  box-shadow: 0 0 15px #00ff99;
+}
+
+.sidebar h2 {
+  color: #00ff99;
+}
+
+.sidebar button {
+  width: 100%;
+  margin: 10px 0;
+  padding: 10px;
+  background: transparent;
+  border: 1px solid #00ff99;
+  color: white;
+  cursor: pointer;
+}
+
+/* Main */
+.main {
+  flex: 1;
+  padding: 20px;
+}
+
+/* Cards */
+.card {
+  background: #111;
+  padding: 20px;
+  margin: 15px 0;
+  border-radius: 12px;
+  box-shadow: 0 0 10px #00ff99;
+}
+
+input {
+  padding: 10px;
+  width: 60%;
+  margin: 5px;
+}
+
+button.analyze {
+  padding: 10px 20px;
+  background: #00ff99;
+  border: none;
+  margin-top: 10px;
+}
+
+.progress {
+  background: #222;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 15px;
+  background: #00ff99;
+}
+
+.hidden {
+  display: none;
+}
+</style>
+
+</head>
+
+<body>
+
+<div class="sidebar">
+  <h2>🔥 FF Analyzer</h2>
+  <button onclick="showSection('dashboard')">Dashboard</button>
+  <button onclick="showSection('history')">History</button>
+  <button onclick="showSection('leaderboard')">Leaderboard</button>
+</div>
+
+<div class="main">
+
+<!-- DASHBOARD -->
+<div id="dashboard">
+  <h1>IGL Analyzer</h1>
+
+  <input id="uid" placeholder="Enter UID"><br>
+
+  <input id="kills" type="number" placeholder="Kills">
+  <input id="headshots" type="number" placeholder="Headshots">
+  <input id="damage" type="number" placeholder="Damage">
+  <input id="survival" type="number" placeholder="Survival Time"><br>
+
+  <button class="analyze" onclick="analyze()">Analyze</button>
+
+  <p id="loading" class="hidden">Analyzing gameplay...</p>
+
+  <div id="result" class="card hidden"></div>
+</div>
+
+<!-- HISTORY -->
+<div id="historySection" class="hidden">
+  <h1>History</h1>
+  <div id="history"></div>
+</div>
+
+<!-- LEADERBOARD -->
+<div id="leaderboardSection" class="hidden">
+  <h1>Leaderboard</h1>
+  <div id="leaderboard"></div>
+</div>
+
+</div>
+
+<script>
+
+function showSection(section) {
+  document.getElementById("dashboard").classList.add("hidden");
+  document.getElementById("historySection").classList.add("hidden");
+  document.getElementById("leaderboardSection").classList.add("hidden");
+
+  if (section === "dashboard") document.getElementById("dashboard").classList.remove("hidden");
+  if (section === "history") document.getElementById("historySection").classList.remove("hidden");
+  if (section === "leaderboard") document.getElementById("leaderboardSection").classList.remove("hidden");
+}
+
+function analyze() {
+  let uid = document.getElementById("uid").value;
+  let kills = +document.getElementById("kills").value;
+  let headshots = +document.getElementById("headshots").value;
+  let damage = +document.getElementById("damage").value;
+  let survival = +document.getElementById("survival").value;
+
+  if (!uid) return alert("Enter UID");
+
+  document.getElementById("loading").classList.remove("hidden");
+
+  setTimeout(() => {
+
+    let accuracy = headshots / (kills || 1);
+
+    let role = "Support";
+    let playstyle = "Balanced";
+
+    if (kills > 6 && survival < 10) {
+      role = "Rusher";
+      playstyle = "Aggressive";
+    } 
+    else if (accuracy > 0.5) {
+      role = "Sniper";
+      playstyle = "Passive";
+    } 
+    else if (damage > 1500 && survival > 15) {
+      role = "IGL";
+      playstyle = "Balanced";
+    }
+
+    let score = Math.min(100, Math.floor((kills*10 + damage/50 + survival*2)));
+
+    let tip = "";
+    if (role === "Rusher") tip = "Rush early fights but improve survival.";
+    if (role === "Sniper") tip = "Maintain distance and aim precision.";
+    if (role === "Support") tip = "Stay with team and provide backup.";
+    if (role === "IGL") tip = "Lead team and control rotations.";
+
+    let previous = getLast(uid);
+    let improvement = "";
+
+    if (previous) {
+      let diff = score - previous.score;
+      improvement = diff >= 0 ? `📈 +${diff}` : `📉 ${diff}`;
+    }
+
+    document.getElementById("result").innerHTML = `
+      <h2>${role}</h2>
+      <p>Playstyle: ${playstyle}</p>
+      <p>Score: ${score}</p>
+
+      <div class="progress">
+        <div class="progress-bar" style="width:${score}%"></div>
+      </div>
+
+      <p>${improvement}</p>
+      <p>Strategy: ${tip}</p>
+
+      <button onclick="shareResult('${role}',${score})">Share</button>
+    `;
+
+    document.getElementById("result").classList.remove("hidden");
+    document.getElementById("loading").classList.add("hidden");
+
+    saveData(uid, role, score);
+    loadHistory(uid);
+    loadLeaderboard();
+
+  }, 1500);
+}
+
+function saveData(uid, role, score) {
+  let data = JSON.parse(localStorage.getItem("ffData")) || [];
+  data.push({ uid, role, score, date: new Date().toLocaleString() });
+  localStorage.setItem("ffData", JSON.stringify(data));
+}
+
+function getLast(uid) {
+  let data = JSON.parse(localStorage.getItem("ffData")) || [];
+  let userData = data.filter(d => d.uid === uid);
+  return userData[userData.length - 1];
+}
+
+function loadHistory(uid) {
+  let data = JSON.parse(localStorage.getItem("ffData")) || [];
+  let userData = data.filter(d => d.uid === uid).slice(-5).reverse();
+
+  let html = "";
+  userData.forEach(d => {
+    html += `<div class="card">${d.role} | ${d.score} | ${d.date}</div>`;
+  });
+
+  document.getElementById("history").innerHTML = html;
+}
+
+function loadLeaderboard() {
+  let data = JSON.parse(localStorage.getItem("ffData")) || [];
+
+  data.sort((a,b)=>b.score-a.score);
+
+  let top = data.slice(0,5);
+
+  let html = "";
+  top.forEach((d,i)=>{
+    html += `<div class="card">#${i+1} UID:${d.uid} - ${d.score}</div>`;
+  });
+
+  document.getElementById("leaderboard").innerHTML = html;
+}
+
+function shareResult(role, score) {
+  let text = `🔥 Role:${role} Score:${score}`;
+  if (navigator.share) navigator.share({text});
+  else alert(text);
+}
+
+</script>
+
+</body>
+  </html>
